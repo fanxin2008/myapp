@@ -1,0 +1,75 @@
+<!--index.wxml-->
+<view class="page" style="padding-top: {{statusBarHeight}}px;">
+  <view class="nav">
+    <text class="nav-title">刹车挑战大师</text>
+    <view class="nav-row">
+      <view class="rank-btn" bindtap="goRank">
+        <view class="rank-icon">
+          <view class="rank-bar"></view>
+          <view class="rank-bar"></view>
+          <view class="rank-bar"></view>
+        </view>
+        <text>排行榜</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="hero">
+    <text class="hero-title">挑战最快刹停</text>
+    <text class="hero-sub">车辆持续加速 · 超速即失败</text>
+  </view>
+
+  <view class="gauge">
+    <view class="gauge-arc-wrap">
+      <view class="gauge-arc"></view>
+    </view>
+    <text class="tick tick-0">0</text>
+    <text class="tick tick-50">50</text>
+    <text class="tick tick-100">100</text>
+    <text class="tick tick-150">150</text>
+    <text class="tick tick-200">200</text>
+    <view class="gauge-needle" style="transform: rotate({{needleAngle}}deg);"></view>
+    <view class="gauge-center">
+      <text class="gauge-speed">{{speed}}</text>
+      <text class="gauge-unit">{{unit}}</text>
+    </view>
+  </view>
+
+  <view class="metrics">
+    <view class="metric">
+      <text class="metric-label">反应时间</text>
+      <text class="metric-value">{{reactionTime}}</text>
+    </view>
+    <view class="metric">
+      <text class="metric-label">总用时</text>
+      <text class="metric-value">{{totalTime}}</text>
+    </view>
+    <view class="metric">
+      <text class="metric-label">制动距离</text>
+      <text class="metric-value">{{brakeDistance}}</text>
+    </view>
+  </view>
+
+  <view class="bottom">
+    <view class="force-card">
+      <view class="force-bar"></view>
+      <view class="force-body">
+        <text class="force-label">刹车力度</text>
+        <text class="force-value">{{brakeForce}}</text>
+      </view>
+      <view class="force-status {{brakeOn ? 'on' : ''}}">
+        <view class="status-dot"></view>
+        <text>ON</text>
+      </view>
+    </view>
+
+    <view class="start-wrap">
+      <view class="start-btn {{isPressing ? 'pressing' : ''}}" bindtap="handleStartTap" bindtouchstart="startBrake" bindtouchend="stopBrake" bindtouchcancel="stopBrake">
+        <text class="btn-txt">{{buttonText}}</text>
+        <text class="remain">剩余{{remainCount}}次</text>
+      </view>
+    </view>
+  </view>
+
+  <text class="footer-tip">超过 1600N 会断裂</text>
+</view>
