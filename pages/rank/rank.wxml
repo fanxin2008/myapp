@@ -1,2 +1,30 @@
-<!--pages/rank.wxml-->
-<text>pages/rank.wxml</text>
+<view class="page">
+  <view class="nav">
+    <!-- <view class="back" bindtap="goBack">‹</view> -->
+    <text class="nav-title">排行榜</text>
+  </view>
+
+  <view class="tabs">
+    <view class="tab {{scope === 'nation' ? 'active' : ''}}" bindtap="switchScope" data-scope="nation">全国</view>
+    <view class="tab {{scope === 'province' ? 'active' : ''}}" bindtap="switchScope" data-scope="province">全省</view>
+    <view class="tab {{scope === 'city' ? 'active' : ''}}" bindtap="switchScope" data-scope="city">全市</view>
+  </view>
+
+  <view class="head">
+    <text class="col rank">名次</text>
+    <text class="col name">玩家</text>
+    <text class="col city">城市</text>
+    <text class="col time">用时</text>
+  </view>
+
+  <view class="list">
+    <view class="row" wx:for="{{list}}" wx:key="rank">
+      <text class="col rank">{{item.rank}}</text>
+      <text class="col name">{{item.name}}</text>
+      <text class="col city">{{item.city}}</text>
+      <text class="col time">{{item.time}}</text>
+    </view>
+  </view>
+
+  <view class="footer">{{scopeText}} ·{{count}}人</view>
+</view>
