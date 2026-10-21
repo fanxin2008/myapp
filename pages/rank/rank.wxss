@@ -129,3 +129,30 @@
   color: #5d6673;
   font-size: 22rpx;
 }
+
+.footer .my-rank {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #7fb2ff;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.footer .count {
+  display: block;
+}
+
+.footer .more {
+  display: block;
+  margin-top: 8rpx;
+  color: #4d5664;
+  font-size: 20rpx;
+}
+
+.empty,
+.loading {
+  padding: 120rpx 0;
+  text-align: center;
+  color: #5d6673;
+  font-size: 24rpx;
+}

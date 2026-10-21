@@ -1,4 +1,6 @@
 // index.js
+const api = require('../../utils/api.js')
+
 Page({
   data: {
     statusBarHeight: 20,
@@ -18,9 +20,10 @@ Page({
     nickname: '',
     nicknameError: '',
     submitted: false,
-    ipLocation: '未知',
+    ipLocation: '自动识别',
     bestRecordText: '暂无纪录',
     hasBestRecord: false,
+    quotaReady: false,
   },
 
   timer: null,
@@ -38,6 +41,10 @@ Page({
   isPressing: false,
   reached100: false,
   lastResult: null,
+  sessionId: null,
+  lastAttemptId: null,
+  pendingRequestId: null,
+  starting: false,
 
   OVERSPEED_LIMIT: 200,
   BREAK_LIMIT: 1600,
@@ -52,40 +59,35 @@ Page({
     this.setData({
       statusBarHeight: windowInfo.statusBarHeight || 20,
     })
-    wx.cloud.init({
-      // 此处请填入环境 ID, 环境 ID 可打开云控制台查看
-      env: 'prod-d7gy3mlkhe17e35f1',
-      traceUser: true,
-    })
-    try {
-      const res = await wx.cloud.callContainer({
-        "config": {
-          "env": "prod-d7gy3mlkhe17e35f1"
-        },
-        "path": "/api/auth/login",
-        "header": {
-          "X-WX-SERVICE": "express-b7m1"
-        },
-        "method": "POST",
-        "data": {
-          "action": "inc"
-        }
-      })
-      console.log(res)
-    } catch (err) {
-      console.error('callContainer /auth/login failed', err)
-    }
 
-    const best = wx.getStorageSync('brake_best_record')
-    if (best && typeof best.total === 'number') {
-      this.setData({
-        hasBestRecord: true,
-        bestRecordText: `${best.nickname} ${best.total.toFixed(3)}s`,
-        nickname: best.nickname || '',
-      })
+    api.initCloud()
+
+    try {
+      const session = await api.ensureLogin()
+      const user = (session && session.user) || {}
+      if (user.nickname) {
+        this.setData({ nickname: user.nickname })
+      }
+    } catch (err) {
+      console.error('login failed', err)
     }
 
     this.detectIpLocation()
+    this.refreshProfile()
+    this.refreshQuota()
+    this.refreshBest()
+    this.restoreLastResult()
+  },
+
+  async refreshProfile() {
+    try {
+      const res = await api.getMe()
+      if (res && res.nickname) {
+        this.setData({ nickname: res.nickname })
+      }
+    } catch (err) {
+      console.error('refresh profile failed', err)
+    }
   },
 
   onUnload() {
@@ -98,12 +100,109 @@ Page({
     })
   },
 
-
   detectIpLocation() {
     const cached = wx.getStorageSync('ip_location')
     this.setData({
-      ipLocation: cached || '北京',
+      ipLocation: cached || '自动识别',
     })
+  },
+
+  async refreshQuota() {
+    try {
+      const res = await api.getQuota()
+      if (res && typeof res.remainingCount === 'number') {
+        this.setData({
+          remainCount: res.remainingCount,
+          quotaReady: true,
+        })
+      }
+    } catch (err) {
+      console.error('refresh quota failed', err)
+    }
+  },
+
+  async refreshBest() {
+    try {
+      const res = await api.getMyBest()
+      if (res && res.hasRecord && res.bestRecord) {
+        const best = res.bestRecord
+        this.setData({
+          hasBestRecord: true,
+          bestRecordText: best.totalTimeMs ? this.formatMsText(best.totalTimeMs) : '暂无纪录',
+        })
+      }
+    } catch (err) {
+      console.error('refresh best failed', err)
+    }
+  },
+
+  async restoreLastResult() {
+    const attemptId = wx.getStorageSync('brake_last_attempt_id')
+    if (!attemptId) {
+      return
+    }
+    try {
+      const res = await api.getResult(attemptId)
+      if (!res || !res.result) {
+        return
+      }
+      this.lastAttemptId = res.attemptId || attemptId
+      const result = this.buildRestoredResult(res)
+
+      if (res.publishStatus === 'PENDING') {
+        result.canPublish = true
+        result.submitted = false
+      } else if (res.publishStatus === 'PUBLISHED') {
+        result.canPublish = false
+        result.submitted = true
+        this.setData({ hasBestRecord: true })
+      } else {
+        return
+      }
+
+      this.setData({
+        remainCount: typeof res.remainingCount === 'number' ? res.remainingCount : this.data.remainCount,
+        resultVisible: true,
+        result,
+        submitted: result.submitted,
+      })
+    } catch (err) {
+      console.error('restore result failed', err)
+    }
+  },
+
+  buildRestoredResult(res) {
+    const r = res.result || {}
+    const bestMs = res.personalBestTimeMs
+    let bestRecordText = bestMs ? `个人最佳 ${this.formatMsText(bestMs)}` : '暂无纪录'
+
+    if (res.publishStatus === 'PENDING') {
+      const candidate = this.formatMsText(r.totalTimeMs)
+      bestRecordText = bestMs
+        ? `新纪录 ${candidate} · 原最佳 ${this.formatMsText(bestMs)}`
+        : `新纪录 ${candidate}`
+    }
+
+    return {
+      type: 'success',
+      title: r.title || '安全刹停',
+      desc: '',
+      bigValue: r.totalTimeMs ? (r.totalTimeMs / 1000).toFixed(3) : '',
+      bigLabel: '总用时',
+      stats: [
+        { label: '反应时间', value: this.formatMsText(r.reactionTimeMs) },
+        { label: '入刹速度', value: r.entrySpeedMilliKmh ? `${Math.round(r.entrySpeedMilliKmh / 1000)}km/h` : '-km/h' },
+        { label: '峰值力度', value: r.maxBrakeForceN ? `${Math.round(r.maxBrakeForceN)}N` : '0N' },
+      ],
+      publishStatus: res.publishStatus,
+      canPublish: false,
+      saving: false,
+      submitted: false,
+      bestRecordText,
+      rankingText: this.buildRankingText(res.rankingSnapshot),
+      attemptId: res.attemptId,
+      firstRecordTip: false,
+    }
   },
 
   handleStartTap() {
@@ -113,19 +212,45 @@ Page({
     this.startChallenge()
   },
 
-  startChallenge() {
+  async startChallenge() {
+    if (this.status !== 'idle' || this.starting) {
+      return
+    }
     if (this.data.remainCount <= 0) {
-      this.showResult({
-        type: 'exhausted',
-        title: '挑战次数已用完',
-        desc: '',
-        bigValue: '',
-        bigLabel: '',
-        stats: [],
-      })
+      this.showExhausted()
       return
     }
 
+    this.starting = true
+    if (!this.pendingRequestId) {
+      this.pendingRequestId = this.genRequestId()
+    }
+
+    try {
+      const res = await api.startChallenge(this.pendingRequestId)
+      this.pendingRequestId = null
+      this.sessionId = res.sessionId
+      if (typeof res.remainingCount === 'number') {
+        this.setData({ remainCount: res.remainingCount })
+      }
+      this.beginGame()
+    } catch (err) {
+      if (err && err.code === 'QUOTA_EXHAUSTED') {
+        this.pendingRequestId = null
+        this.setData({ remainCount: 0 })
+        this.showExhausted()
+      } else {
+        wx.showToast({
+          title: (err && err.message) || '开始挑战失败',
+          icon: 'none',
+        })
+      }
+    } finally {
+      this.starting = false
+    }
+  },
+
+  beginGame() {
     this.stopLoop()
     this.speedValue = 0
     this.forceValue = 0
@@ -143,7 +268,6 @@ Page({
     this.status = 'accelerating'
 
     this.setData({
-      remainCount: this.data.remainCount - 1,
       speed: '000',
       brakeForce: '0N',
       brakeOn: false,
@@ -161,9 +285,9 @@ Page({
   },
 
   startBrake() {
-    if (this.status == 'idle') {
-        this.startChallenge()
-        return;
+    if (this.status === 'idle') {
+      this.startChallenge()
+      return
     }
     if (this.status !== 'accelerating' && this.status !== 'braking') {
       return
@@ -233,8 +357,6 @@ Page({
         this.hundredAt = Date.now()
       }
 
-      this.distanceValue += (this.speedValue / 3.6) * 0.05
-
       if (this.speedValue > this.OVERSPEED_LIMIT) {
         this.showResult({
           type: 'overspeed',
@@ -296,12 +418,19 @@ Page({
   },
 
   succeed() {
-    this.totalValue = (Date.now() - this.hundredAt) / 1000
+    const now = Date.now()
+    const totalMs = now - this.hundredAt
+    this.totalValue = totalMs / 1000
+    const reactionMs = Math.max(0, this.brakeStartedAt ? this.brakeStartedAt - this.hundredAt : Math.round(this.reactionValue * 1000))
+    const brakeDurationMs = Math.max(0, totalMs - reactionMs)
+
     this.lastResult = {
-      total: this.totalValue,
-      speed: this.brakeSpeedValue,
-      reaction: this.reactionValue,
-      peak: this.peakForceValue,
+      totalMs,
+      reactionMs,
+      brakeDurationMs,
+      entrySpeedMilliKmh: Math.round(this.brakeSpeedValue * 1000),
+      maxBrakeForceN: Math.round(this.peakForceValue),
+      brakingDistanceMm: Math.round(this.distanceValue * 1000),
     }
 
     this.showResult({
@@ -315,15 +444,106 @@ Page({
         { label: '入刹速度', value: `${Math.round(this.brakeSpeedValue)}km/h` },
         { label: '峰值力度', value: `${Math.round(this.peakForceValue)}N` },
       ],
+      publishStatus: 'SUBMITTING',
+      canPublish: false,
+      saving: true,
+      submitted: false,
+      bestRecordText: this.data.bestRecordText,
+      rankingText: '',
+      firstRecordTip: false,
+    })
+
+    this.submitAttempt()
+  },
+
+  async submitAttempt(retried = false) {
+    const attempt = this.lastResult
+    if (!attempt || !this.sessionId) {
+      this.setData({ 'result.saving': false })
+      return
+    }
+
+    try {
+      const res = await api.submitChallenge(this.sessionId, {
+        totalTimeMs: attempt.totalMs,
+        reactionTimeMs: attempt.reactionMs,
+        brakeDurationMs: attempt.brakeDurationMs,
+        entrySpeedMilliKmh: attempt.entrySpeedMilliKmh,
+        maxBrakeForceN: attempt.maxBrakeForceN,
+        brakingDistanceMm: attempt.brakingDistanceMm,
+      })
+      this.lastAttemptId = res.attemptId
+      wx.setStorageSync('brake_last_attempt_id', res.attemptId)
+      this.applySubmitResult(res)
+    } catch (err) {
+      if (err && err.code === 'NETWORK_ERROR' && !retried) {
+        this.submitAttempt(true)
+        return
+      }
+      console.error('submit failed', err)
+      wx.showToast({
+        title: (err && err.message) || '成绩保存失败',
+        icon: 'none',
+      })
+      this.setData({
+        'result.saving': false,
+        'result.canPublish': false,
+      })
+    }
+  },
+
+  applySubmitResult(res) {
+    const personalBest = (res && res.personalBest) || {}
+    const canPublish = personalBest.publishStatus === 'PENDING'
+
+    this.setData({
+      remainCount: typeof res.remainingCount === 'number' ? res.remainingCount : this.data.remainCount,
+      'result.saving': false,
+      'result.publishStatus': personalBest.publishStatus || 'NOT_ELIGIBLE',
+      'result.canPublish': canPublish,
+      'result.submitted': false,
+      'result.bestRecordText': this.buildSubmitBestText(personalBest),
+      'result.firstRecordTip': !this.data.hasBestRecord && canPublish,
+      'result.attemptId': res.attemptId,
     })
   },
 
+  buildSubmitBestText(personalBest) {
+    if (!personalBest || !personalBest.isCandidate) {
+      if (personalBest && personalBest.publishedBestTimeMs) {
+        return `个人最佳 ${this.formatMsText(personalBest.publishedBestTimeMs)}`
+      }
+      return this.data.bestRecordText || '暂无纪录'
+    }
+
+    const candidate = this.formatMsText(personalBest.candidateBestTimeMs)
+    if (personalBest.publishedBestTimeMs) {
+      return `新纪录 ${candidate} · 原最佳 ${this.formatMsText(personalBest.publishedBestTimeMs)}`
+    }
+    return `新纪录 ${candidate}`
+  },
+
   showResult(result) {
+    if (result && result.type === 'success') {
+      result.bestRecordText = result.bestRecordText || this.data.bestRecordText || '暂无纪录'
+    }
     this.resetGame()
     this.setData({
       result,
       resultVisible: true,
-      submitted: false,
+      submitted: !!(result && result.submitted),
+    })
+  },
+
+  showExhausted() {
+    this.showResult({
+      type: 'exhausted',
+      title: '挑战次数已用完',
+      desc: '北京时间每日 00:00 自动刷新次数',
+      bigValue: '',
+      bigLabel: '',
+      stats: [],
+      saving: false,
     })
   },
 
@@ -383,35 +603,105 @@ Page({
     })
   },
 
-  submitRecord() {
+  async submitRecord(retried = false) {
+    if (this.data.submitted || this.data.result.submitted) {
+      return
+    }
+
     const nickname = (this.data.nickname || '').trim()
     if (!nickname) {
-      this.setData({
-        nicknameError: '请输入昵称',
-      })
+      this.setData({ nicknameError: '请输入昵称' })
+      return
+    }
+    if ([...nickname].length > 16) {
+      this.setData({ nicknameError: '昵称最多 16 个字符' })
       return
     }
 
-    const current = this.lastResult
-    if (!current) {
+    const attemptId = this.lastAttemptId || this.data.result.attemptId
+    if (!attemptId) {
+      wx.showToast({ title: '成绩尚未保存', icon: 'none' })
       return
     }
 
-    const record = {
-      nickname,
-      total: current.total,
-      speed: current.speed,
-      reaction: current.reaction,
-      peak: current.peak,
+    this.setData({ nicknameError: '' })
+    try {
+      const res = await api.publishRecord(attemptId, nickname)
+      this.applyPublishResult(res, nickname)
+    } catch (err) {
+      if (err && err.code === 'NETWORK_ERROR' && !retried) {
+        this.submitRecord(true)
+        return
+      }
+      if (err && err.code === 'NOT_A_NEW_BEST') {
+        wx.showToast({ title: '已有更快的个人纪录', icon: 'none' })
+        this.setData({
+          'result.canPublish': false,
+          'result.publishStatus': 'DECLINED',
+          'result.submitted': true,
+        })
+        this.refreshBest()
+      } else {
+        wx.showToast({
+          title: (err && err.message) || '提交失败',
+          icon: 'none',
+        })
+      }
     }
+  },
 
-    wx.setStorageSync('brake_best_record', record)
+  applyPublishResult(res, nickname) {
+    const page = (res && res.pageData) || {}
+    const bestMs = page.personalBestTimeMs
+    const rankingText = page.displayMessage || this.buildRankingText(page.ranking)
+
     this.setData({
-      hasBestRecord: true,
-      bestRecordText: `${nickname} ${current.total.toFixed(3)}s`,
+      submitted: true,
       nickname,
       nicknameError: '',
-      submitted: true,
+      hasBestRecord: true,
+      bestRecordText: bestMs ? this.formatMsText(bestMs) : this.data.bestRecordText,
+      remainCount: typeof page.remainingCount === 'number' ? page.remainingCount : this.data.remainCount,
+      'result.submitted': true,
+      'result.canPublish': false,
+      'result.publishStatus': 'PUBLISHED',
+      'result.bestRecordText': bestMs ? `个人最佳 ${this.formatMsText(bestMs)}` : this.data['result.bestRecordText'],
+      'result.rankingText': rankingText,
+    })
+    wx.setStorageSync('brake_last_attempt_id', res.attemptId || this.lastAttemptId)
+  },
+
+  buildRankingText(ranking) {
+    if (!ranking) {
+      return ''
+    }
+    const parts = []
+    if (ranking.nationalRank != null) {
+      parts.push(`全国第 ${ranking.nationalRank} 名`)
+    }
+    if (ranking.provinceRank != null) {
+      parts.push(`省第 ${ranking.provinceRank} 名`)
+    }
+    if (ranking.cityRank != null) {
+      parts.push(`市第 ${ranking.cityRank} 名`)
+    }
+    return parts.join(' · ')
+  },
+
+  formatMsText(ms) {
+    const value = Number(ms)
+    if (!isFinite(value)) {
+      return '--'
+    }
+    return `${(value / 1000).toFixed(3)}s`
+  },
+
+  genRequestId() {
+    const s = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+    return s.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0
+      const v = c === 'x' ? r : (r & 0x3) | 0x8
+      return v.toString(16)
     })
   },
 

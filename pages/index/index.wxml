@@ -93,19 +93,31 @@
       <block wx:if="{{result.type === 'success'}}">
         <view class="best-row">
           <text class="best-label">个人最好纪录</text>
-          <text class="best-value">{{bestRecordText}}</text>
+          <text class="best-value">{{result.bestRecordText}}</text>
         </view>
-        <view class="nick-row">
-          <text class="nick-label">车手昵称</text>
-          <input class="nick-input" maxlength="16" placeholder="（1-16字）" value="{{nickname}}" bindinput="onNicknameInput" />
+
+        <view class="ranking-row" wx:if="{{result.rankingText}}">
+          <text class="ranking-text">{{result.rankingText}}</text>
         </view>
-        <text class="nick-error" wx:if="{{nicknameError}}">{{nicknameError}}</text>
-        <view class="ip-row">
-          <text class="ip-label">IP 属地：{{ipLocation}}</text>
+
+        <view class="saving-row" wx:if="{{result.saving}}">
+          <text class="saving-text">成绩保存中…</text>
         </view>
-        <view class="submit-btn {{submitted ? 'submitted' : ''}}" bindtap="submitRecord">{{submitted ? '已提交' : '提交个人新纪录'}}</view>
-        <text class="submit-tip">提交即公开昵称、最好成绩和 IP 属地，每人保留一条纪录。属地自动识别，不获取 GPS.</text>
-        <text class="success-tip" wx:if="{{!hasBestRecord}}">首次成功刹停！填写昵称，留下你的个人纪录。</text>
+
+        <block wx:if="{{result.canPublish}}">
+          <view class="nick-row">
+            <text class="nick-label">车手昵称</text>
+            <input class="nick-input" maxlength="16" placeholder="（1-16字）" value="{{nickname}}" bindinput="onNicknameInput" />
+          </view>
+          <text class="nick-error" wx:if="{{nicknameError}}">{{nicknameError}}</text>
+          <view class="ip-row">
+            <text class="ip-label">IP 属地：{{ipLocation}}</text>
+          </view>
+          <view class="submit-btn {{result.submitted ? 'submitted' : ''}}" bindtap="submitRecord">{{result.submitted ? '已提交' : '提交个人新纪录'}}</view>
+          <text class="submit-tip">提交即公开昵称、最好成绩和 IP 属地，每人保留一条纪录。属地自动识别，不获取 GPS.</text>
+        </block>
+
+        <text class="success-tip" wx:if="{{result.firstRecordTip}}">首次成功刹停！填写昵称，留下你的个人纪录。</text>
       </block>
 
       <view class="result-actions">

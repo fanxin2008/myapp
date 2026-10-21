@@ -1,6 +1,5 @@
 <view class="page">
   <view class="nav">
-    <!-- <view class="back" bindtap="goBack">‹</view> -->
     <text class="nav-title">排行榜</text>
   </view>
 
@@ -18,13 +17,20 @@
   </view>
 
   <view class="list">
-    <view class="row" wx:for="{{list}}" wx:key="rank">
+    <view class="row" wx:for="{{list}}" wx:key="userId">
       <text class="col rank">{{item.rank}}</text>
-      <text class="col name">{{item.name}}</text>
-      <text class="col city">{{item.city}}</text>
-      <text class="col time">{{item.time}}</text>
+      <text class="col name">{{item.nickname}}</text>
+      <text class="col city">{{item.cityName}}</text>
+      <text class="col time">{{item.timeText}}</text>
     </view>
+
+    <view class="empty" wx:if="{{!loading && !list.length}}">暂无数据</view>
+    <view class="loading" wx:if="{{loading}}">加载中…</view>
   </view>
 
-  <view class="footer">{{scopeText}} ·{{count}}人</view>
+  <view class="footer">
+    <text class="my-rank" wx:if="{{myRankText}}">{{myRankText}}</text>
+    <text class="count">{{scopeText}} · {{count}}人</text>
+    <text class="more">{{hasMore ? '上拉加载更多' : '已经到底啦'}}</text>
+  </view>
 </view>

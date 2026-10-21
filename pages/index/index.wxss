@@ -571,3 +571,32 @@ page {
   font-weight: 400;
   opacity: 0.85;
 }
+
+.ranking-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 20rpx;
+  padding: 16rpx 24rpx;
+  border: 1rpx solid rgba(127, 178, 255, 0.28);
+  border-radius: 18rpx;
+  background: rgba(127, 178, 255, 0.10);
+}
+
+.ranking-text {
+  color: #7fb2ff;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.saving-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 20rpx;
+}
+
+.saving-text {
+  color: #8b93a1;
+  font-size: 23rpx;
+}
