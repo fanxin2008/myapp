@@ -272,7 +272,7 @@ Page({
     this.setData({
       speed: '000',
       brakeForce: '0N',
-      forcePercent: 100,
+      forcePercent: 0,
       brakeOn: false,
       buttonText: '踩下刹车',
       reactionTime: '0.00s',
