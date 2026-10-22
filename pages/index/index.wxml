@@ -52,15 +52,19 @@
 
   <view class="bottom">
     <view class="force-card">
-      <view class="force-bar"></view>
+      <view class="force-bar">
+          <view class="force-bar-fill" style="width: calc(100% - {{forcePercent}}%);"></view>
+        </view>
       <view class="force-body">
-        <text class="force-label">刹车力度</text>
-        <text class="force-value">{{brakeForce}}</text>
+        <view class="force-head">
+          <text class="force-label">刹车力度</text>
+          <text class="force-value">{{brakeForce}}</text>
+        </view>
       </view>
-      <view class="force-status {{brakeOn ? 'on' : ''}}">
+      <!-- <view class="force-status {{brakeOn ? 'on' : ''}}">
         <view class="status-dot"></view>
         <text>ON</text>
-      </view>
+      </view> -->
     </view>
 
     <view class="start-wrap">
@@ -73,7 +77,7 @@
 
   <text class="footer-tip">超过 1600N 会断裂</text>
 
-  <view class="result-mask" wx:if="{{resultVisible}}" bindtap="closeResult" catchtouchmove="noop">
+  <view class="result-mask" wx:if="{{resultVisible}}" catchtouchmove="noop">
     <view class="result-card" catchtap="noop">
       <view class="result-title">{{result.title}}</view>
       <view class="result-desc" wx:if="{{result.desc}}">{{result.desc}}</view>

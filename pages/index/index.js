@@ -11,6 +11,7 @@ Page({
     brakeDistance: '0.0m',
     brakeForce: '0N',
     brakeOn: false,
+    forcePercent: 0,
     remainCount: 10,
     buttonText: '开始挑战',
     needleAngle: -90,
@@ -95,6 +96,7 @@ Page({
   },
 
   goRank() {
+    if(this.data.resultVisible) return;
     wx.navigateTo({
       url: '/pages/rank/rank',
     })
@@ -270,13 +272,13 @@ Page({
     this.setData({
       speed: '000',
       brakeForce: '0N',
+      forcePercent: 100,
       brakeOn: false,
       buttonText: '踩下刹车',
       reactionTime: '0.00s',
       totalTime: '0.00s',
       brakeDistance: '0.0m',
       needleAngle: -90,
-      resultVisible: false,
       nicknameError: '',
       submitted: false,
     })
@@ -285,6 +287,7 @@ Page({
   },
 
   startBrake() {
+    if(this.data.resultVisible) return;
     if (this.status === 'idle') {
       this.startChallenge()
       return
@@ -324,6 +327,7 @@ Page({
   },
 
   stopBrake() {
+    if(this.data.resultVisible) return;
     if (!this.isPressing) {
       return
     }
@@ -566,22 +570,19 @@ Page({
     this.setData({
       speed: '000',
       brakeForce: '0N',
+      forcePercent: 0,
       brakeOn: false,
       buttonText: '开始挑战',
       reactionTime: '0.00s',
       totalTime: '0.00s',
       brakeDistance: '0.0m',
       needleAngle: -90,
+      resultVisible: false
+
     })
   },
 
   noop() {},
-
-  closeResult() {
-    this.setData({
-      resultVisible: false,
-    })
-  },
 
   goHome() {
     this.setData({
@@ -709,10 +710,14 @@ Page({
     const totalTime = this.hundredAt
       ? this.formatTime((Date.now() - this.hundredAt) / 1000)
       : '0.00s'
-
+    let forcePercent = Math.min(100, Math.max(0, (this.forceValue / this.BREAK_LIMIT) * 100))
+    if(this.forceValue == 0) {
+      forcePercent = 0;
+    }
     this.setData({
       speed: this.formatSpeed(this.speedValue),
       brakeForce: `${Math.round(this.forceValue)}N`,
+      forcePercent,
       brakeDistance: `${this.distanceValue.toFixed(1)}m`,
       reactionTime: this.formatTime(this.reactionValue),
       totalTime,
